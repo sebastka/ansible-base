@@ -1,0 +1,10 @@
+PermitRootLogin no
+AuthorizedKeysFile /etc/ssh/authorized_keys/%u.pub.keys
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+UsePAM yes
+PrintMotd no
+Subsystem	sftp	/usr/lib/openssh/sftp-server
+
+Match Group ssh_passwordlogin_allowed
+    PasswordAuthentication yes

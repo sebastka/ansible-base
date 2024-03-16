@@ -1,0 +1,94 @@
+---
+# Basic system configuration
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: '{{ ansible_host }}'
+  become: yes
+
+- name: Replace default hostame if present in /etc/hosts
+  ansible.builtin.replace:
+    path: /etc/hosts
+    regexp: 'bookworm-template'
+    replace: '{{ ansible_host }}\t{{ inventory_hostname_short }}'
+  become: yes
+
+- name: Set up base hostfile
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: '127.0.1.1 {{ ansible_host }} {{ inventory_hostname_short }}'
+    state: present
+  become: yes
+
+- name: Set up local hostname in hostfile
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: '127.0.1.1 {{ interfaces.private.hostname }}'
+    state: present
+  when: interfaces.private.hostname is defined
+  become: yes
+
+- name: Set up local hostnames of other hosts in the network
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars[item]['ansible_' + interfaces.private.name]['ipv4']['address'] }} {{ hostvars[item].interfaces.private.hostname }}"
+    state: present
+  when: interfaces.private.hostname is defined and hostvars[item].interfaces.private.hostname is defined and hostvars[item].interfaces.private.hostname != interfaces.private.hostname
+  loop: '{{ groups["all"] }}'
+  become: yes
+
+- name: Set locales
+  community.general.locale_gen:
+    name: '{{ item }}.UTF-8'
+    state: present
+  loop: [ 'en_US', 'nb_NO' ]
+  become: yes
+
+- name: Set timezone to Europe/Oslo
+  community.general.timezone:
+    name: Europe/Oslo
+  become: yes
+
+- name: Update /etc/locale.conf
+  ansible.builtin.template:
+    src: etc/locale.conf
+    dest: /etc/locale.conf
+    owner: root
+    group: root
+    mode: 0644
+  become: yes
+
+- name: Determine available groups
+  ansible.builtin.getent:
+    database: group
+
+- name: Add users to extra groups
+  ansible.builtin.user:
+    name: '{{ item.0.name }}'
+    groups: '{{ item.1 }}'
+    append: yes
+  when: item.1 in ansible_facts.getent_group
+  loop: "{{ users | subelements('extra_groups') }}"
+  become: yes
+
+- name: Set sysctl extra group values
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  with_dict: "{{ sysctl_group_options }}"
+  when: sysctl_group_options is defined
+  become: yes
+
+- name: Set sysctl extra host values
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  with_dict: "{{ sysctl_host_options }}"
+  when: sysctl_host_options is defined
+  become: yes

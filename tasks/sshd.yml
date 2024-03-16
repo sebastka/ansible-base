@@ -1,0 +1,42 @@
+---
+# sshd configuration
+
+- name: Update sshd_config
+  ansible.builtin.template:
+    src: etc/ssh/sshd_config
+    dest: /etc/ssh/sshd_config
+  register: sshd_conf
+  become: yes
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: sshd_conf.changed
+  become: yes
+
+- name: Create '/etc/ssh/authorized_keys'
+  ansible.builtin.file:
+    path: '/etc/ssh/authorized_keys'
+    mode: 0755
+    state: directory
+  become: yes
+
+- name: Populate '/etc/ssh/authorized_keys/%u.pub.keys' files
+  ansible.posix.authorized_key:
+    user: '{{ item.name }}'
+    state: present
+    path: '/etc/ssh/authorized_keys/{{ item.name }}.pub.keys'
+    key: "{{ item.authorized_keys | join('\n') }}\n"
+  loop: '{{ users }}'
+  become: yes
+
+- name: Set correct permissions for /etc/ssh/authorized_key/*
+  ansible.builtin.file:
+    path: /etc/ssh/authorized_keys
+    owner: root
+    group: root
+    mode: u=rwX,g=rX,o=rX
+    recurse: yes
+  become: yes
+

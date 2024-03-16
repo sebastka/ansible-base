@@ -1,0 +1,12 @@
+---
+# tasks file for base
+
+- name: Include base system setup process
+  include_tasks: system.yml
+  tags: setup
+
+- name: Include sshd configure process
+  include_tasks: sshd.yml
+  tags:
+    - configure
+    - sshd
